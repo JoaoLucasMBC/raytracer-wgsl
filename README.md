@@ -1,6 +1,10 @@
 ## WGSL Raytracer Template
 Template básico de um Ray Tracer em WGSL (WEBGPU). Tudo o que precisa para fazer o projeto esta aqui.
 
+### ⚠️ Atenção
+
+O projeto provavelmente não vai rodar em linux, já que a GPU não fica acessível pro WGSL.
+
 ### Instruções
 Faça um fork do projeto, clone e abra no Visual Studio (ou outro software, mas recomendo esse)
 
