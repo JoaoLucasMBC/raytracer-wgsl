@@ -1,6 +1,30 @@
 fn hit_sphere(center: vec3f, radius: f32, r: ray, record: ptr<function, hit_record>, max: f32)
 {
+  var a = dot(r.direction, r.direction);
+  var h = dot(r.direction, r.origin - center); // h is b divided by 2.0
+  var c = dot(r.origin - center, r.origin - center) - radius * radius;
 
+  var delta = h * h - a * c;
+
+  if (delta < 0.0) {
+    record.hit_anything = false;
+    return;
+  }
+
+  var t1 = (-1.0 * h + sqrt(delta)) / a; // t1 is the first intersection point
+  var t2 = (-1.0 * h - sqrt(delta)) / a; // t2 is the second intersection point
+
+  var t = min(t1, t2);
+
+  if (t < RAY_TMIN || t > max) {
+    record.hit_anything = false;
+    return;
+  }
+
+  record.t = t;
+  record.p = ray_at(r, t);
+  record.normal = normalize(record.p - center);
+  record.hit_anything = true;
 }
 
 fn hit_quad(r: ray, Q: vec4f, u: vec4f, v: vec4f, record: ptr<function, hit_record>, max: f32)

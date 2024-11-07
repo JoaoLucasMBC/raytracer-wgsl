@@ -160,11 +160,20 @@ fn check_ray_collision(r: ray, max: f32) -> hit_record
   var meshCount = i32(uniforms[27]);
 
   var record = hit_record(RAY_TMAX, vec3f(0.0), vec3f(0.0), vec4f(0.0), vec4f(0.0), false, false);
+
+  for (var i = 0; i < spheresCount; i++) {
+    var s = spheresb[i];
+    hit_sphere(s.transform.xyz, s.transform.w, r, &record, max);
+
+    // update if it is only the closesŧ?
+  }
+  
   var closest = record;
 
   return closest;
 }
 
+// TODO
 fn lambertian(normal : vec3f, absorption: f32, random_sphere: vec3f, rng_state: ptr<function, u32>) -> material_behaviour
 {
   return material_behaviour(true, vec3f(0.0));
@@ -199,9 +208,35 @@ fn trace(r: ray, rng_state: ptr<function, u32>) -> vec3f
   for (var j = 0; j < maxbounces; j = j + 1)
   {
 
+    if (!behaviour.scatter) {
+      break;
+    }
+
+    // check ray collision
+    var closest_record = check_ray_collision(ray, RAY_TMAX);
+
+    if (closest_record.hit_anything) {
+      // calculate new direction
+      var normal = closest_record.normal;
+      behaviour = lambertian(normal, 0.0, vec3f(0.0), rng_state); // WHAT ARE THE ARGS?
+
+
+      var new_dir = behaviour.direction;
+
+      // calculate ray color
+      color *= closest_record.object_color
+
+      // calculate new origin
+      r_ = ray(closest_record.p, new_dir);
+      
+    } else {
+      // return background color and object color
+      color *= envoriment_color(r_.direction, backgroundcolor1, backgroundcolor2);
+      break;
+    }
   }
 
-  return light;
+  return color; //light; ??
 }
 
 @compute @workgroup_size(THREAD_COUNT, THREAD_COUNT, 1)
@@ -229,9 +264,16 @@ fn render(@builtin(global_invocation_id) id : vec3u)
 
     // Steps:
     // 1. Loop for each sample per pixel
-    // 2. Get ray
-    // 3. Call trace function
+    for (var i = 0; i < samples_per_pixel; i++) {
+      // 2. Get ray
+      var ray = get_ray(cam, uv, &rng_state);
+      // 3. Call trace function
+      color += trace(ray, &rng_state);
+
+      // Get another random number for the square???
+    }
     // 4. Average the color
+    color /= f32(samples_per_pixel);
 
     var color_out = vec4(linear_to_gamma(color), 1.0);
     var map_fb = mapfb(id.xy, rez);
