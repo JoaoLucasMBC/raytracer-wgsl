@@ -21,9 +21,13 @@ fn hit_sphere(center: vec3f, radius: f32, r: ray, record: ptr<function, hit_reco
     return;
   }
 
+  var p = ray_at(r, t);
+  var normal = normalize(p - center);
+  record.frontface = dot(r.direction, normal) < 0.0; // if the dot is negative, the ray is hitting the outside of the sphere
+
   record.t = t;
-  record.p = ray_at(r, t);
-  record.normal = normalize(record.p - center);
+  record.p = p;
+  record.normal = mix(-normal, normal, f32(record.frontface)); // if the ray is hitting the inside of the sphere, the normal is inverted
   record.hit_anything = true;
 }
 
