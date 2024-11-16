@@ -31,6 +31,8 @@ Para mover a camera, use WASDQEXZ. Para rodar, use as setas.
 ### Dicas
 Procure pelos comentários no código para te ajudar. Dê uma olhada nos outros arquivos ```.wgsl``` além do ```raytracer.wgsl```, várias funções que você vai precisar já estão disponíveis lá, prontas para usar.
 
+⚠️ A especularidade é branca! Se na cena metálica você estiver vendo as cores erradas, procure fazer um ```mix``` entre a cor especular e a cor que vem do metalico e lambertiano.
+
 ### Nota
 You can compute your grade based on the scenes you managed to render. You can always check here (https://gubebra.itch.io/raytracing) to validate your implementation
 - D: ```"Basic", "Metal", "Fuzz"```
