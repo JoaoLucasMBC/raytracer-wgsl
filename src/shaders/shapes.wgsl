@@ -108,14 +108,10 @@ fn hit_triangle(r: ray, v0: vec3f, v1: vec3f, v2: vec3f, record: ptr<function, h
   record.hit_anything = true;
 }
 
-fn hit_box(r: ray, center: vec3f, rad: vec3f, rotation: vec3f, record: ptr<function, hit_record>, t_max: f32)
+fn hit_box(r: ray, center: vec3f, rad: vec3f, record: ptr<function, hit_record>, t_max: f32)
 {
-  var q = quaternion_from_euler(rotation);
-  var q_inv = q_inverse(q);
-  var rot_ray = rotate_ray_quaternion(r, center, q_inv);
-
-  var m = 1.0 / rot_ray.direction;
-  var n = m * (rot_ray.origin - center);
+  var m = 1.0 / r.direction;
+  var n = m * (r.origin - center);
   var k = abs(m) * rad;
 
   var t1 = -n - k;
@@ -137,21 +133,15 @@ fn hit_box(r: ray, center: vec3f, rad: vec3f, rotation: vec3f, record: ptr<funct
     return;
   }
 
-  var local_hit_point = ray_at(rot_ray, t);
-  var local_normal = -sign(rot_ray.direction) * step(t1.yzx, t1.xyz) * step(t1.zxy, t1.xyz);
-
-  var world_normal = rotate_vector(local_normal, q);
-  var world_hit_point = rotate_vector(local_hit_point, q) + center;
-
   record.t = t;
-  record.p = world_hit_point;
-  record.normal = world_normal;
+  record.p = ray_at(r, t);
+  record.normal = -sign(r.direction) * step(t1.yzx, t1.xyz) * step(t1.zxy, t1.xyz);
   record.hit_anything = true;
 
   return;
 }
 
-fn hit_cylinder(r: ray, center: vec3f, rad: f32, height_2: f32, rotation: vec3f, record: ptr<function, hit_record>, max: f32) {
+fn hit_cylinder(r: ray, center: vec3f, rad: f32, height_2: f32, record: ptr<function, hit_record>, max: f32) {
   // Precompute some values for optimization
   var Dx = r.direction.x;
   var Dz = r.direction.z;

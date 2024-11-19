@@ -192,14 +192,21 @@ fn check_ray_collision(r: ray, max: f32) -> hit_record
     var b = boxesb[i];
     var new_record = hit_record(RAY_TMAX, vec3f(0.0), vec3f(0.0), vec4f(0.0), vec4f(0.0), false, false);
 
+    var q = quaternion_from_euler(b.rotation.xyz);
+    var q_inv = q_inverse(q);
+    var rot_ray = rotate_ray_quaternion(r, b.center.xyz, q);
+
     // If the radius.w is 0.0, it is a box, otherwise it is a cylinder
     if (b.radius.w == 0.0) {
-      hit_box(r, b.center.xyz, b.radius.xyz, b.rotation.xyz, &new_record, max);
+      hit_box(rot_ray, b.center.xyz, b.radius.xyz, &new_record, max);
     }
     else {
       // For the cylinder, it uses the radius.x and radius.y as the radius and height/2 of the cylinder, respectively
-      hit_cylinder(r, b.center.xyz, b.radius.x, b.radius.y, b.rotation.xyz, &new_record, max);
+      hit_cylinder(r, b.center.xyz, b.radius.x, b.radius.y, &new_record, max);
     }
+
+    new_record.normal = rotate_vector(new_record.normal, q_inv);
+    new_record.p = rotate_vector(new_record.p - b.center.xyz, q_inv) + b.center.xyz;
 
     if (new_record.hit_anything && new_record.t < closest.t) {
       closest = new_record;
@@ -211,18 +218,25 @@ fn check_ray_collision(r: ray, max: f32) -> hit_record
   for (var i = 0; i < meshCount; i++) {
     var m = meshb[i];
 
+    var q = quaternion_from_euler(m.rotation.xyz);
+    var q_inv = q_inverse(q);
+    var rot_ray = rotate_ray_quaternion(r, m.transform.xyz, q);
+
     // Optimization to avoid checking the mesh if it is not in the view
-    if (!AABB_intersect(r, m.min.xyz, m.max.xyz)) {
+    if (!AABB_intersect(rot_ray, m.min.xyz * m.scale.xyz + m.transform.xyz, m.max.xyz * m.scale.xyz + m.transform.xyz)) {
       continue;
     }
 
+    // FIX: scale and transform for bbox as well
     if (m.show_bb > 0.0) {
       var new_record = hit_record(RAY_TMAX, vec3f(0.0), vec3f(0.0), vec4f(0.0), vec4f(0.0), false, false);
-      var center = (m.min.xyz + m.max.xyz) * 0.5;
-      var radius = (m.max.xyz - m.min.xyz) * 0.5;
-      hit_box(r, center, radius, m.rotation.xyz, &new_record, max);
+      var center = (m.min.xyz + m.max.xyz) * 0.5 * m.scale.xyz;
+      var radius = (m.max.xyz - m.min.xyz) * 0.5 * m.scale.xyz;
+      hit_box(rot_ray, center, radius, &new_record, max);
 
       if (new_record.hit_anything && new_record.t < closest.t) {
+        new_record.normal = rotate_vector(new_record.normal, q_inv);
+        new_record.p = rotate_vector(new_record.p - m.transform.xyz, q_inv) + m.transform.xyz;
         closest = new_record;
         closest.object_color = m.color;
         closest.object_material = m.material;
@@ -233,9 +247,14 @@ fn check_ray_collision(r: ray, max: f32) -> hit_record
       for (var j = i32(m.start); j < i32(m.end); j++) {
         var t = trianglesb[j];
         var new_record = hit_record(RAY_TMAX, vec3f(0.0), vec3f(0.0), vec4f(0.0), vec4f(0.0), false, false);
-        hit_triangle(r, t.v0.xyz, t.v1.xyz, t.v2.xyz, &new_record, max);
+        hit_triangle(rot_ray, 
+          (t.v0.xyz * m.scale.xyz+ m.transform.xyz), 
+          (t.v1.xyz * m.scale.xyz+ m.transform.xyz), 
+          (t.v2.xyz * m.scale.xyz+ m.transform.xyz), &new_record, max);
 
         if (new_record.hit_anything && new_record.t < closest.t) {
+          new_record.normal = rotate_vector(new_record.normal, q_inv);
+          new_record.p = rotate_vector(new_record.p - m.transform.xyz, q_inv) + m.transform.xyz;
           closest = new_record;
           closest.object_color = m.color;
           closest.object_material = m.material;
@@ -352,6 +371,10 @@ fn trace(r: ray, rng_state: ptr<function, u32>) -> vec3f
 
       // calculate ray color
       var new_color = mix(closest_record.object_color.xyz, vec3(1.0), smoothness) * f32(!is_emissive) + emissive_behaviour.direction * f32(is_emissive);
+
+      if (is_dielectric) {
+        new_color = closest_record.object_color.xyz;
+      }
 
       color *= new_color;
 
