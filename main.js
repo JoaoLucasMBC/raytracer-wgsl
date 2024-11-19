@@ -103,7 +103,7 @@ const objectBuffers = [
     { buffer: quadsBuffer, type: "storage" }, 
     { buffer: boxesBuffer, type: "storage" }, 
     { buffer: trianglesBuffer, type: "storage" }, 
-    { buffer: meshesBuffer, type: "storage" }
+    { buffer: meshesBuffer, type: "storage" },
 ];
 
 // bind group layout
@@ -332,11 +332,12 @@ function printCurrentScene()
 
     for (let i = 0; i < boxes.length; i++)
     {
-        funcString += `\n\t\tnew Box([${boxes[i].center[0]}, ${boxes[i].center[1]}, ${boxes[i].center[2]}, ${boxes[i].center[3]}], [${boxes[i].color[0]}, ${boxes[i].color[1]}, ${boxes[i].color[2]}], [${boxes[i].rotation[0]}, ${boxes[i].rotation[1]}, ${boxes[i].rotation[2]}, ${boxes[i].rotation[3]}], [${boxes[i].radius[0]}, ${boxes[i].radius[1]}, ${boxes[i].radius[2]}, ${boxes[i].radius[3]}], [${boxes[i].material[0]}, ${boxes[i].material[1]}, ${boxes[i].material[2]}, ${boxes[i].material[3]}]), `;
+        // Also print the radius[3] as the cylinder flag
+        funcString += `\n\t\tnew Box([${boxes[i].center[0]}, ${boxes[i].center[1]}, ${boxes[i].center[2]}, ${boxes[i].center[3]}], [${boxes[i].color[0]}, ${boxes[i].color[1]}, ${boxes[i].color[2]}], [${boxes[i].rotation[0]}, ${boxes[i].rotation[1]}, ${boxes[i].rotation[2]}, ${boxes[i].rotation[3]}], [${boxes[i].radius[0]}, ${boxes[i].radius[1]}, ${boxes[i].radius[2]}, ${boxes[i].radius[3]}], [${boxes[i].material[0]}, ${boxes[i].material[1]}, ${boxes[i].material[2]}, ${boxes[i].material[3]}], ${boxes[i].radius[3]}), `;
     }
 
     funcString += "\n\t];\n";
-    funcString += "\n\treturn {\n\t\tspheres : spheres,\n\t\tquads : quads,\n\t\tboxes : boxes,\n\t\ttriangles: [],\n\t\tmeshes: [],\n\t\tbackgroundColor1 : [" + backgroundColor1.object.r + ", " + backgroundColor1.object.g + ", " + backgroundColor1.object.b + "],\n\t\tbackgroundColor2 : [" + backgroundColor2.object.r + ", " + backgroundColor2.object.g + ", " + backgroundColor2.object.b + "],\n\t\tfocusDistance: " + uniforms.focusDistance + ",\n\t\tfocusAngle: " + uniforms.focusAngle + ",\n\t\tsunIntensity: " + uniforms.sunIntensity + ",\n\t\tsamplesPerPixel: " + uniforms.samplesPerPixel + ",\n\t\tmaxBounces: " + uniforms.maxBounces + "\n\t};";
+    funcString += "\n\treturn {\n\t\tspheres : spheres,\n\t\tquads : quads,\n\t\tboxes : boxes,\n\t\ttriangles: [],\n\t\tmeshes: [],\n\t\t backgroundColor1 : [" + backgroundColor1.object.r + ", " + backgroundColor1.object.g + ", " + backgroundColor1.object.b + "],\n\t\tbackgroundColor2 : [" + backgroundColor2.object.r + ", " + backgroundColor2.object.g + ", " + backgroundColor2.object.b + "],\n\t\tfocusDistance: " + uniforms.focusDistance + ",\n\t\tfocusAngle: " + uniforms.focusAngle + ",\n\t\tsunIntensity: " + uniforms.sunIntensity + ",\n\t\tsamplesPerPixel: " + uniforms.samplesPerPixel + ",\n\t\tmaxBounces: " + uniforms.maxBounces + "\n\t};";
     funcString += "\n}\n";
     console.log(funcString);
 }

@@ -48,6 +48,7 @@ struct quad {
   material : vec4f,
 };
 
+// This can also be a cylinder, if the radius.w is 1.0!
 struct box {
   center : vec4f,
   radius : vec4f,
@@ -165,6 +166,7 @@ fn check_ray_collision(r: ray, max: f32) -> hit_record
   for (var i = 0; i < spheresCount; i++) {
     var s = spheresb[i];
     var new_record = hit_record(RAY_TMAX, vec3f(0.0), vec3f(0.0), vec4f(0.0), vec4f(0.0), false, false);
+
     hit_sphere(s.transform.xyz, s.transform.w, r, &new_record, max);
 
     if (new_record.hit_anything && new_record.t < closest.t) {
@@ -189,7 +191,15 @@ fn check_ray_collision(r: ray, max: f32) -> hit_record
   for (var i = 0; i < boxesCount; i++) {
     var b = boxesb[i];
     var new_record = hit_record(RAY_TMAX, vec3f(0.0), vec3f(0.0), vec4f(0.0), vec4f(0.0), false, false);
-    hit_box(r, b.center.xyz, b.radius.xyz, &new_record, max);
+
+    // If the radius.w is 0.0, it is a box, otherwise it is a cylinder
+    if (b.radius.w == 0.0) {
+      hit_box(r, b.center.xyz, b.radius.xyz, b.rotation.xyz, &new_record, max);
+    }
+    else {
+      // For the cylinder, it uses the radius.x and radius.y as the radius and height/2 of the cylinder, respectively
+      hit_cylinder(r, b.center.xyz, b.radius.x, b.radius.y, b.rotation.xyz, &new_record, max);
+    }
 
     if (new_record.hit_anything && new_record.t < closest.t) {
       closest = new_record;
@@ -201,11 +211,16 @@ fn check_ray_collision(r: ray, max: f32) -> hit_record
   for (var i = 0; i < meshCount; i++) {
     var m = meshb[i];
 
+    // Optimization to avoid checking the mesh if it is not in the view
+    if (!AABB_intersect(r, m.min.xyz, m.max.xyz)) {
+      continue;
+    }
+
     if (m.show_bb > 0.0) {
       var new_record = hit_record(RAY_TMAX, vec3f(0.0), vec3f(0.0), vec4f(0.0), vec4f(0.0), false, false);
       var center = (m.min.xyz + m.max.xyz) * 0.5;
       var radius = (m.max.xyz - m.min.xyz) * 0.5;
-      hit_box(r, center, radius, &new_record, max);
+      hit_box(r, center, radius, m.rotation.xyz, &new_record, max);
 
       if (new_record.hit_anything && new_record.t < closest.t) {
         closest = new_record;
@@ -213,7 +228,7 @@ fn check_ray_collision(r: ray, max: f32) -> hit_record
         closest.object_material = m.material;
       }
     }
-    
+
     else {
       for (var j = i32(m.start); j < i32(m.end); j++) {
         var t = trianglesb[j];
@@ -247,33 +262,35 @@ fn metal(normal : vec3f, direction: vec3f, fuzz: f32, random_sphere: vec3f) -> m
 
 fn dielectric(normal : vec3f, r_direction: vec3f, refraction_index: f32, frontface: bool, random_sphere: vec3f, fuzz: f32, rng_state: ptr<function, u32>) -> material_behaviour
 {
+  // Ratio of refraction indices
   var eta_over_eta_prime = f32(frontface) * (1.0 / refraction_index) + f32(!frontface) * refraction_index;
+
   var cos_theta = dot(-1.0 * r_direction, normal);
   var sin_theta = sqrt(1.0 - cos_theta * cos_theta);
+
+  // Check for total internal reflection
   var should_reflect = eta_over_eta_prime * sin_theta > 1.0;
 
   if (should_reflect) {
     return metal(normal, r_direction, fuzz, random_sphere);
   }
 
-  var R0: f32;
-  if (frontface) {
-    var R0 = pow((1.0 - refraction_index) / (1.0 + refraction_index), 2.0);
-  } else {
-    var R0 = pow((refraction_index - 1.0) / (refraction_index + 1.0), 2.0);
-  }
+  // Schlick's approximation
+  var r0 = (1.0 - refraction_index) / (1.0 + refraction_index);
+  r0 = r0 * r0;
+  var R = r0 + (1.0 - r0) * pow(1.0 - cos_theta, 5.0);
 
-  var R = R0 + (1.0 - R0) * pow(1.0 - cos_theta, 5.0);
-
+  // Refraction rays
   var r_perpendicular = eta_over_eta_prime * (r_direction + cos_theta * normal);
   var r_parallel = -1.0 * sqrt(1.0 - dot(r_perpendicular, r_perpendicular)) * normal;
   var new_r = r_perpendicular + r_parallel;
-
+  
+  // Randomly choose between reflection and refraction according to the fresnel equation
   var should_refract = rng_next_float(rng_state) > R;
-
   var r_reflect = reflect(r_direction, normal);
 
-  return material_behaviour(true, mix(r_reflect, new_r, f32(should_refract)));
+  // Return the new direction
+  return material_behaviour(true, normalize(mix(r_reflect, new_r, f32(should_refract))));
 }
 
 fn emmisive(color: vec3f, light: f32) -> material_behaviour
@@ -313,15 +330,15 @@ fn trace(r: ray, rng_state: ptr<function, u32>) -> vec3f
 
       var smoothness = closest_record.object_material.x * f32(rand < prob);
 
-      var lamb_behaviour = lambertian(normal, closest_record.object_material.y, rng_next_vec3_in_unit_sphere(rng_state), rng_state); // WHAT ARE THE ARGS?
-      var metal_behaviour = metal(normal, r_.direction, closest_record.object_material.y, rng_next_vec3_in_unit_sphere(rng_state)); // WHAT ARE THE ARGS?
+      var lamb_behaviour = lambertian(normal, closest_record.object_material.y, rng_next_vec3_in_unit_sphere(rng_state), rng_state);
+      var metal_behaviour = metal(normal, r_.direction, closest_record.object_material.y, rng_next_vec3_in_unit_sphere(rng_state));
       var emissive_behaviour = emmisive(closest_record.object_color.xyz, closest_record.object_material.w);
-      var dielectric_behaviour = dielectric(normal, r_.direction, 1.0 + closest_record.object_material.z, closest_record.frontface, rng_next_vec3_in_unit_sphere(rng_state), closest_record.object_material.y, rng_state);
+      var dielectric_behaviour = dielectric(normal, r_.direction, closest_record.object_material.z, closest_record.frontface, rng_next_vec3_in_unit_sphere(rng_state), closest_record.object_material.y, rng_state);
 
       var is_emissive = closest_record.object_material.w > 0;
       var is_dielectric = closest_record.object_material.x < 0;
 
-      // include checking if it is emissive
+      // include checking if it is emissive, then kill the ray
       behaviour.scatter = lamb_behaviour.scatter && !is_emissive;
 
       // LERP between the directions
@@ -333,19 +350,15 @@ fn trace(r: ray, rng_state: ptr<function, u32>) -> vec3f
 
       var new_dir = behaviour.direction;
 
-      // calculate ray color (CONSIDER IF IT IS EMISSIVE)
+      // calculate ray color
       var new_color = mix(closest_record.object_color.xyz, vec3(1.0), smoothness) * f32(!is_emissive) + emissive_behaviour.direction * f32(is_emissive);
-      
-      // consider if it is dielectric
-      if (is_dielectric) {
-          new_color = closest_record.object_color.xyz;
-      }
 
       color *= new_color;
 
       // calculate new origin
       r_ = ray(closest_record.p, new_dir);
       
+      // add light if it is emissive
       light += color * f32(is_emissive);
       
     } else {
@@ -354,7 +367,6 @@ fn trace(r: ray, rng_state: ptr<function, u32>) -> vec3f
       break;
     }
   }
-
 
   return light;
 }
